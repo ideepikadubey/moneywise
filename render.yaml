@@ -1,0 +1,40 @@
+services:
+  # ----------------------------------------------------
+  # 1. MoneyWise Backend API Service (Node / Express)
+  # ----------------------------------------------------
+  - type: web
+    name: moneywise-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+
+  # ----------------------------------------------------
+  # 2. MoneyWise Frontend Web App (Next.js)
+  # ----------------------------------------------------
+  - type: web
+    name: moneywise-frontend
+    runtime: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
