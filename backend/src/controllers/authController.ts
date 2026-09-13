@@ -5,6 +5,7 @@ import { User } from "../models/User";
 import { FirmMember } from "../models/FirmMember";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../utils/jwt";
 import { AuthenticatedRequest } from "../middleware/auth";
+import { sendOtpEmail } from "../utils/emailService";
 
 export const signup = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
   const { name, email, password } = req.body;
@@ -35,12 +36,17 @@ export const signup = asyncHandler(async (req: AuthenticatedRequest, res: Respon
     isEmailVerified: false,
   });
 
-  console.log(`[SIGNUP OTP] Email: ${cleanEmail} | OTP: ${otp}`);
+  // Dispatch OTP email via Nodemailer
+  await sendOtpEmail({
+    to: cleanEmail,
+    otp,
+    name: cleanName,
+  });
 
   res.status(201).json({
     message: "Account created. Please enter the 6-digit OTP sent to your email.",
     email: cleanEmail,
-    devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    devOtp: process.env.SHOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production" ? otp : undefined,
   });
 });
 
@@ -118,11 +124,18 @@ export const requestOtp = asyncHandler(async (req: AuthenticatedRequest, res: Re
   user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await user.save();
 
-  console.log(`[RESEND OTP] Email: ${cleanId} | OTP: ${otp}`);
+  // Dispatch OTP email via Nodemailer
+  if (user.email) {
+    await sendOtpEmail({
+      to: user.email,
+      otp,
+      name: user.name,
+    });
+  }
 
   res.json({
     message: "OTP sent to your email",
-    devOtp: process.env.NODE_ENV !== "production" ? otp : undefined,
+    devOtp: process.env.SHOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production" ? otp : undefined,
   });
 });
 
