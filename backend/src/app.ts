@@ -48,6 +48,7 @@ app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 const apiLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500 });
 app.use("/api", apiLimiter);
 
+app.get("/", (_req, res) => res.json({ name: "MoneyWise API", status: "online", health: "/health" }));
 app.get("/health", (_req, res) => res.json({ status: "ok", timestamp: new Date().toISOString() }));
 
 app.use("/api/auth", authRoutes);
