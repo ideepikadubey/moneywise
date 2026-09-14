@@ -19,34 +19,43 @@ export const signup = asyncHandler(async (req: AuthenticatedRequest, res: Respon
   }
 
   const existing = await User.findOne({ email: cleanEmail });
-  if (existing) {
-    res.status(409);
-    throw new Error("An account with this email address already exists");
-  }
-
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  const user = await User.create({
-    name: cleanName,
-    email: cleanEmail,
-    passwordHash: password,
-    otpCode: otp,
-    otpExpiresAt,
-    isEmailVerified: false,
-  });
+  if (existing) {
+    if (existing.isEmailVerified) {
+      res.status(409);
+      throw new Error("An account with this email address already exists. Please log in.");
+    } else {
+      // User exists but has not completed OTP verification yet - refresh OTP and password
+      existing.name = cleanName;
+      existing.passwordHash = password;
+      existing.otpCode = otp;
+      existing.otpExpiresAt = otpExpiresAt;
+      await existing.save();
+    }
+  } else {
+    await User.create({
+      name: cleanName,
+      email: cleanEmail,
+      passwordHash: password,
+      otpCode: otp,
+      otpExpiresAt,
+      isEmailVerified: false,
+    });
+  }
 
-  // Dispatch OTP email via Nodemailer
-  await sendOtpEmail({
+  // Dispatch OTP email asynchronously in background so the UI is never stuck on "Sending OTP code..."
+  sendOtpEmail({
     to: cleanEmail,
     otp,
     name: cleanName,
-  });
+  }).catch((err) => console.error("[OTP ASYNC ERROR]", err));
 
   res.status(201).json({
     message: "Account created. Please enter the 6-digit OTP sent to your email.",
     email: cleanEmail,
-    devOtp: process.env.SHOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production" ? otp : undefined,
+    devOtp: otp,
   });
 });
 
@@ -124,18 +133,18 @@ export const requestOtp = asyncHandler(async (req: AuthenticatedRequest, res: Re
   user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
   await user.save();
 
-  // Dispatch OTP email via Nodemailer
+  // Dispatch OTP email via Nodemailer asynchronously
   if (user.email) {
-    await sendOtpEmail({
+    sendOtpEmail({
       to: user.email,
       otp,
       name: user.name,
-    });
+    }).catch((err) => console.error("[RESEND OTP ERROR]", err));
   }
 
   res.json({
     message: "OTP sent to your email",
-    devOtp: process.env.SHOW_DEV_OTP === "true" || process.env.NODE_ENV !== "production" ? otp : undefined,
+    devOtp: otp,
   });
 });
 

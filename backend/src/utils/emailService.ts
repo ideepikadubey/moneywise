@@ -8,26 +8,43 @@ interface SendOtpOptions {
 
 /**
  * Creates a Nodemailer transporter based on environment variables.
- * Supports standard SMTP (e.g. Gmail, Hostinger, Outlook, SendGrid SMTP).
+ * Supports Gmail service and standard SMTP.
  */
 function createTransporter() {
   const host = process.env.SMTP_HOST || "smtp.gmail.com";
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+  const port = Number(process.env.SMTP_PORT) || 465;
+  const user = process.env.SMTP_USER?.trim();
+  const pass = process.env.SMTP_PASS?.replace(/\s+/g, ""); // remove accidental spaces in app passwords
 
   if (!user || !pass) {
     return null;
   }
 
+  // For Gmail, using service: 'gmail' or port 465 is the most reliable
+  if (host.includes("gmail") || user.endsWith("@gmail.com")) {
+    return nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user,
+        pass,
+      },
+      connectionTimeout: 5000,
+      greetingTimeout: 5000,
+      socketTimeout: 5000,
+    });
+  }
+
   return nodemailer.createTransport({
     host,
     port,
-    secure: port === 465, // true for port 465, false for 587
+    secure: port === 465,
     auth: {
       user,
       pass,
     },
+    connectionTimeout: 5000,
+    greetingTimeout: 5000,
+    socketTimeout: 5000,
   });
 }
 
@@ -36,7 +53,12 @@ function createTransporter() {
  */
 export async function sendOtpEmail({ to, otp, name }: SendOtpOptions): Promise<boolean> {
   const userGreeting = name ? `Hello ${name},` : "Hello,";
-  const fromAddress = process.env.EMAIL_FROM || process.env.SMTP_USER || "MoneyWise <no-reply@moneywise.app>";
+  let fromAddress = process.env.EMAIL_FROM?.trim() || process.env.SMTP_USER?.trim() || "MoneyWise <no-reply@moneywise.app>";
+
+  // Ensure fromAddress has valid format
+  if (fromAddress && !fromAddress.includes("<") && fromAddress.includes("@")) {
+    fromAddress = `MoneyWise <${fromAddress}>`;
+  }
 
   console.log(`[OTP DISPATCH] Destination: ${to} | Code: ${otp}`);
 
@@ -44,7 +66,7 @@ export async function sendOtpEmail({ to, otp, name }: SendOtpOptions): Promise<b
 
   if (!transporter) {
     console.warn(
-      "[EMAIL SERVICE] SMTP_USER or SMTP_PASS not set in environment variables. OTP email not dispatched via SMTP."
+      "[EMAIL SERVICE] SMTP_USER or SMTP_PASS not configured. OTP logged to console only."
     );
     return false;
   }
