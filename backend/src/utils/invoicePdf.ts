@@ -260,9 +260,13 @@ export function streamInvoicePdf(res: Response, firm: PdfFirm, party: PdfParty, 
       doc.fillColor("#0f172a");
     }
 
+    const u = (item.unit || "").toUpperCase();
+    const isServiceUnit = u === "OTH" || u === "SERV" || u === "SERVICE" || u === "NA" || u === "N/A" || !item.unit;
+    const qtyText = isServiceUnit ? "-" : `${item.quantity} ${item.unit}`;
+
     doc.text(item.description, cols.desc.x + 5, rowY + 2, { width: cols.desc.w - 8, lineBreak: false });
     doc.text(item.hsnOrSac || "-", cols.hsn.x, rowY + 2, { width: cols.hsn.w, align: "right" });
-    doc.text(`${item.quantity} ${item.unit}`, cols.qty.x, rowY + 2, { width: cols.qty.w, align: "right" });
+    doc.text(qtyText, cols.qty.x, rowY + 2, { width: cols.qty.w, align: "right" });
     doc.text(item.rate.toLocaleString("en-IN"), cols.rate.x, rowY + 2, { width: cols.rate.w, align: "right" });
     doc.text(`${item.taxRate}%`, cols.tax.x, rowY + 2, { width: cols.tax.w, align: "right" });
     doc.text(item.totalAmount.toLocaleString("en-IN"), cols.amount.x, rowY + 2, { width: cols.amount.w - 5, align: "right" });

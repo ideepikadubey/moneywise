@@ -125,12 +125,13 @@ export default function ItemsPage() {
     setIsSubmitting(true);
     try {
       const rate = taxPreference === "taxable" ? Number(taxRate) || 0 : 0;
+      const isService = type === "service";
       const payload: any = {
         name,
         type,
-        unit,
-        itemsPerUnit: Number(itemsPerUnit) || 1,
-        secondaryUnit: secondaryUnit || "PCS",
+        unit: isService ? "OTH" : unit,
+        itemsPerUnit: isService ? 1 : Number(itemsPerUnit) || 1,
+        secondaryUnit: isService ? "PCS" : secondaryUnit || "PCS",
         hsnOrSac: hsnOrSac || undefined,
         taxPreference,
         taxRate: rate,
@@ -138,7 +139,7 @@ export default function ItemsPage() {
         salePrice: Number(salePrice) || 0,
         purchasePrice: Number(purchasePrice) || 0,
         description: description || undefined,
-        lowStockThreshold: type === "product" ? Number(lowStockThreshold) || 0 : 0,
+        lowStockThreshold: !isService ? Number(lowStockThreshold) || 0 : 0,
       };
 
       if (editingProduct) {
@@ -273,67 +274,71 @@ export default function ItemsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className={type === "product" ? "grid grid-cols-1 gap-4 sm:grid-cols-2" : ""}>
             <div>
               <label className="block text-sm font-medium text-slate-700">
-                Item Name <span className="text-red-500">*</span>
+                Item / Service Name <span className="text-red-500">*</span>
               </label>
               <input
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Wireless Mouse / Consulting Fee"
+                placeholder={type === "product" ? "e.g. Wireless Mouse" : "e.g. Consulting Fee / Web Design Service"}
                 className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Unit of Measurement</label>
-              <UnitSelect value={unit} onChange={setUnit} />
-            </div>
-          </div>
-
-          {/* Conversion / Items per Box or Crate */}
-          <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 transition-all">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {type === "product" && (
               <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-indigo-900">
-                  Items / Quantity per {unit || "Box/Crate"} (Optional Conversion)
-                </label>
-                <p className="mt-0.5 text-xs text-indigo-600">
-                  Specify how many items/pieces are inside 1 {unit} (e.g. 30 eggs per Crate / 12 items per Box).
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs">
-                  <span className="text-xs font-medium text-slate-500">Qty:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={itemsPerUnit}
-                    onChange={(e) => setItemsPerUnit(e.target.value)}
-                    placeholder="e.g. 30"
-                    className="w-20 font-bold text-slate-800 focus:outline-none text-sm"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs">
-                  <span className="text-xs font-medium text-slate-500">In:</span>
-                  <input
-                    type="text"
-                    value={secondaryUnit}
-                    onChange={(e) => setSecondaryUnit(e.target.value.toUpperCase())}
-                    placeholder="PCS"
-                    className="w-16 uppercase font-bold text-slate-800 focus:outline-none text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-            {Number(itemsPerUnit) > 1 && (
-              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-indigo-100/80 px-2.5 py-1 text-xs font-semibold text-indigo-950">
-                <span>💡 Packaging Formula:</span>
-                <span className="font-bold text-indigo-900">1 {unit} = {itemsPerUnit} {secondaryUnit || "PCS"}</span>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Unit of Measurement</label>
+                <UnitSelect value={unit} onChange={setUnit} />
               </div>
             )}
           </div>
+
+          {/* Conversion / Items per Box or Crate - Only for Physical Products */}
+          {type === "product" && (
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-4 transition-all">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-indigo-900">
+                    Items / Quantity per {unit || "Box/Crate"} (Optional Conversion)
+                  </label>
+                  <p className="mt-0.5 text-xs text-indigo-600">
+                    Specify how many items/pieces are inside 1 {unit} (e.g. 30 eggs per Crate / 12 items per Box).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs">
+                    <span className="text-xs font-medium text-slate-500">Qty:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={itemsPerUnit}
+                      onChange={(e) => setItemsPerUnit(e.target.value)}
+                      placeholder="e.g. 30"
+                      className="w-20 font-bold text-slate-800 focus:outline-none text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-xs">
+                    <span className="text-xs font-medium text-slate-500">In:</span>
+                    <input
+                      type="text"
+                      value={secondaryUnit}
+                      onChange={(e) => setSecondaryUnit(e.target.value.toUpperCase())}
+                      placeholder="PCS"
+                      className="w-16 uppercase font-bold text-slate-800 focus:outline-none text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              {Number(itemsPerUnit) > 1 && (
+                <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-indigo-100/80 px-2.5 py-1 text-xs font-semibold text-indigo-950">
+                  <span>💡 Packaging Formula:</span>
+                  <span className="font-bold text-indigo-900">1 {unit} = {itemsPerUnit} {secondaryUnit || "PCS"}</span>
+                </div>
+              )}
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-slate-700">

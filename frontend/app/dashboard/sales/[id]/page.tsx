@@ -20,6 +20,14 @@ interface LineItem {
   totalAmount: number;
 }
 
+function formatQuantity(item: LineItem) {
+  const u = (item.unit || "").toUpperCase();
+  if (u === "OTH" || u === "SERV" || u === "SERVICE" || u === "NA" || u === "N/A" || !item.unit) {
+    return "—";
+  }
+  return `${item.quantity} ${item.unit}`;
+}
+
 interface FirmDetails {
   _id: string;
   name: string;
@@ -275,7 +283,7 @@ export default function InvoiceDetailPage() {
                       <td className="py-3 font-semibold text-slate-800">
                         {typeof item.product === "object" ? item.product.name : item.description || "Item"}
                       </td>
-                      <td className="py-3 text-right text-slate-600">{item.quantity} {item.unit}</td>
+                      <td className="py-3 text-right text-slate-600">{formatQuantity(item)}</td>
                       <td className="py-3 text-right text-slate-600">₹{item.rate.toLocaleString("en-IN")}</td>
                       <td className="py-3 text-right text-slate-600">{item.taxRate}%</td>
                       <td className="py-3 text-right font-bold text-slate-900">₹{item.totalAmount.toLocaleString("en-IN")}</td>
@@ -381,7 +389,7 @@ export default function InvoiceDetailPage() {
                     <td className="p-2.5 font-medium text-slate-800 border-r border-slate-200">
                       {typeof item.product === "object" ? item.product.name : item.description || "Item"}
                     </td>
-                    <td className="p-2.5 text-right text-slate-700 border-r border-slate-200">{item.quantity} {item.unit}</td>
+                    <td className="p-2.5 text-right text-slate-700 border-r border-slate-200">{formatQuantity(item)}</td>
                     <td className="p-2.5 text-right text-slate-700 border-r border-slate-200">₹{item.rate.toLocaleString("en-IN")}</td>
                     <td className="p-2.5 text-right text-slate-700 border-r border-slate-200">{item.taxRate}%</td>
                     <td className="p-2.5 text-right font-bold text-slate-900">₹{item.totalAmount.toLocaleString("en-IN")}</td>
@@ -448,7 +456,7 @@ export default function InvoiceDetailPage() {
                   <td className="py-1.5 font-medium text-slate-800">
                     {typeof item.product === "object" ? item.product.name : item.description || "Item"}
                   </td>
-                  <td className="py-1.5 text-right">{item.quantity}</td>
+                  <td className="py-1.5 text-right">{formatQuantity(item)}</td>
                   <td className="py-1.5 text-right">₹{item.rate}</td>
                   <td className="py-1.5 text-right">{item.taxRate}%</td>
                   <td className="py-1.5 text-right font-bold">₹{item.totalAmount.toLocaleString("en-IN")}</td>
@@ -561,7 +569,7 @@ export default function InvoiceDetailPage() {
                         {typeof item.product === "object" ? item.product.name : item.description || "Item"}
                       </td>
                       <td className="py-3 text-right text-slate-600">
-                        {item.quantity} {item.unit}
+                        {formatQuantity(item)}
                       </td>
                       <td className="py-3 text-right text-slate-600">₹{item.rate.toLocaleString("en-IN")}</td>
                       <td className="py-3 text-right text-slate-600">{item.taxRate}%</td>
