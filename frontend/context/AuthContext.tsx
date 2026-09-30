@@ -25,6 +25,7 @@ interface UserSummary {
   name: string;
   email?: string;
   phone?: string;
+  enableTwoFirms?: boolean;
 }
 
 interface AuthContextValue {

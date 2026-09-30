@@ -11,5 +11,7 @@ router.post("/", paymentController.recordPayment);
 router.get("/", paymentController.listPayments);
 router.get("/dues", paymentController.listOutstandingDues); // must stay above "/:id"
 router.get("/:id", paymentController.getPayment);
+router.put("/:id", paymentController.updatePayment);
+router.delete("/:id", paymentController.deletePayment);
 
 export default router;

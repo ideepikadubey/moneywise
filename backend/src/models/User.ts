@@ -8,6 +8,7 @@ export interface IUser extends Document {
   passwordHash: string;
   isEmailVerified: boolean;
   isPhoneVerified: boolean;
+  enableTwoFirms: boolean;
   otpCode?: string;
   otpExpiresAt?: Date;
   resetPasswordToken?: string;
@@ -26,6 +27,7 @@ const userSchema = new Schema<IUser>(
     passwordHash: { type: String, required: true },
     isEmailVerified: { type: Boolean, default: false },
     isPhoneVerified: { type: Boolean, default: false },
+    enableTwoFirms: { type: Boolean, default: false },
     otpCode: { type: String, select: false },
     otpExpiresAt: { type: Date, select: false },
     resetPasswordToken: { type: String, select: false },

@@ -94,7 +94,13 @@ export const login = asyncHandler(async (req: AuthenticatedRequest, res: Respons
   const refreshToken = signRefreshToken({ userId: user._id.toString() });
 
   res.json({
-    user: { id: user._id, name: user.name, email: user.email, phone: user.phone },
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      enableTwoFirms: !!user.enableTwoFirms,
+    },
     firms: memberships.map((m) => ({ firm: m.firm, role: m.role })),
     accessToken,
     refreshToken,
@@ -169,7 +175,13 @@ export const verifyOtp = asyncHandler(async (req: AuthenticatedRequest, res: Res
 
   res.json({
     message: "Email verified successfully",
-    user: { id: user._id, name: user.name, email: user.email },
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      enableTwoFirms: !!user.enableTwoFirms,
+    },
     firms: memberships.map((m) => ({ firm: m.firm, role: m.role })),
     accessToken,
     refreshToken,
@@ -224,7 +236,13 @@ export const getMe = asyncHandler(async (req: AuthenticatedRequest, res: Respons
   const memberships = await FirmMember.find({ user: req.userId, isActive: true }).populate("firm", "name logoUrl");
 
   res.json({
-    user: { id: user!._id, name: user!.name, email: user!.email, phone: user!.phone },
+    user: {
+      id: user!._id,
+      name: user!.name,
+      email: user!.email,
+      phone: user!.phone,
+      enableTwoFirms: !!user!.enableTwoFirms,
+    },
     firms: memberships.map((m) => ({ firm: m.firm, role: m.role })),
   });
 });

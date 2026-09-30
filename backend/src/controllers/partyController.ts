@@ -17,7 +17,11 @@ export const listParties = asyncHandler(async (req: AuthenticatedRequest, res: R
   const filter: Record<string, any> = { firm: req.firmId };
 
   if (type) filter.type = type === "customer" ? { $in: ["customer", "both"] } : { $in: ["supplier", "both"] };
-  if (isActive !== undefined) filter.isActive = isActive === "true";
+  if (isActive !== undefined) {
+    filter.isActive = isActive === "true";
+  } else {
+    filter.isActive = { $ne: false };
+  }
   if (search) filter.name = { $regex: search as string, $options: "i" };
 
   const parties = await Party.find(filter).sort({ name: 1 });

@@ -35,8 +35,13 @@ interface AgingBucket {
   textColor: string;
 }
 
-function monthKey(d: Date) {
-  return d.toLocaleDateString("en-IN", { month: "short" });
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const FISCAL_MONTH_ORDER = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
+
+function getMonthName(d: Date | string) {
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return "";
+  return MONTH_NAMES[date.getMonth()];
 }
 
 export default function DashboardOverview() {
@@ -91,19 +96,19 @@ export default function DashboardOverview() {
     });
 
   // Sales & purchases by month, this fiscal year
-  const monthOrder = ["Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-  const chartData = monthOrder.map((m) => ({ month: m, Sales: 0, Purchases: 0 }));
+  const chartData = FISCAL_MONTH_ORDER.map((m) => ({ month: m, Sales: 0, Purchases: 0 }));
   invoices.forEach((inv) => {
-    const m = monthKey(new Date(inv.invoiceDate));
+    if (inv.status === "cancelled") return;
+    const m = getMonthName(inv.invoiceDate);
     const bucket = chartData.find((c) => c.month === m);
-    if (bucket) bucket.Sales += inv.grandTotal;
+    if (bucket) bucket.Sales += inv.grandTotal || 0;
   });
   bills.forEach((b) => {
-    const m = monthKey(new Date(b.billDate));
+    const m = getMonthName(b.billDate);
     const bucket = chartData.find((c) => c.month === m);
-    if (bucket) bucket.Purchases += b.grandTotal;
+    if (bucket) bucket.Purchases += b.grandTotal || 0;
   });
-  const totalSales = invoices.reduce((s, i) => s + i.grandTotal, 0);
+  const totalSales = invoices.filter((i) => i.status !== "cancelled").reduce((s, i) => s + i.grandTotal, 0);
   const totalPurchases = bills.reduce((s, b) => s + b.grandTotal, 0);
   const netRevenue = totalSales - totalPurchases;
 
@@ -242,10 +247,16 @@ export default function DashboardOverview() {
                   tick={{ fontSize: 11, fill: "#64748b" }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(v) => `₹${v >= 1000 ? `${v / 1000}k` : v}`}
+                  tickFormatter={(v) => {
+                    if (v === 0) return "₹0";
+                    if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+                    if (v >= 100000) return `₹${(v / 100000).toFixed(1)}L`;
+                    if (v >= 1000) return `₹${(v / 1000).toFixed(0)}k`;
+                    return `₹${v}`;
+                  }}
                 />
                 <Tooltip
-                  formatter={(v, name) => [`₹${Number(v).toLocaleString("en-IN")}`, name === "Sales" ? "Sales Invoices" : "Purchases"]}
+                  formatter={(v, name) => [`₹${Number(v).toLocaleString("en-IN")}`, name === "Sales" ? "Sales Invoiced" : "Purchase Bills"]}
                   contentStyle={{
                     borderRadius: "12px",
                     border: "1px solid #e2e8f0",
@@ -254,8 +265,8 @@ export default function DashboardOverview() {
                     fontSize: "12px",
                   }}
                 />
-                <Bar dataKey="Sales" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="Purchases" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={32} />
+                <Bar dataKey="Sales" fill="#4f46e5" radius={[6, 6, 0, 0]} maxBarSize={32} minPointSize={4} />
+                <Bar dataKey="Purchases" fill="#f59e0b" radius={[6, 6, 0, 0]} maxBarSize={32} minPointSize={4} />
               </BarChart>
             </ResponsiveContainer>
           </div>

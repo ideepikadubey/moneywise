@@ -6,6 +6,27 @@ import { User } from "../models/User";
 import { AuthenticatedRequest } from "../middleware/auth";
 
 export const createFirm = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const user = await User.findById(req.userId);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Count existing active businesses this user belongs to
+  const existingCount = await FirmMember.countDocuments({ user: req.userId, isActive: true });
+
+  if (!user.enableTwoFirms && existingCount >= 1) {
+    res.status(403);
+    throw new Error(
+      "Adding a second business is locked. Please contact support or administrator to enable two-business access on your account."
+    );
+  }
+
+  if (existingCount >= 2) {
+    res.status(403);
+    throw new Error("Business limit reached. A single account can add up to 2 businesses maximum.");
+  }
+
   const firm = await Firm.create({ ...req.body, createdBy: req.userId });
 
   // Creator automatically becomes the "owner" of this firm

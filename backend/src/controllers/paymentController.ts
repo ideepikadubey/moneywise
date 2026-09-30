@@ -98,3 +98,50 @@ export const listOutstandingDues = asyncHandler(async (req: AuthenticatedRequest
   const parties = await Party.find({ ...filter, currentBalance: { $ne: 0 } }).sort({ currentBalance: -1 });
   res.json(parties);
 });
+
+export const updatePayment = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const { paymentMode, referenceNumber, paymentDate, notes } = req.body;
+  const payment = await Payment.findOne({ _id: req.params.id, firm: req.firmId });
+  if (!payment) {
+    res.status(404);
+    throw new Error("Payment not found");
+  }
+
+  if (paymentMode) payment.paymentMode = paymentMode;
+  if (referenceNumber !== undefined) payment.referenceNumber = referenceNumber;
+  if (paymentDate) payment.paymentDate = new Date(paymentDate);
+  if (notes !== undefined) payment.notes = notes;
+
+  await payment.save();
+  res.json(payment);
+});
+
+export const deletePayment = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+  const payment = await Payment.findOne({ _id: req.params.id, firm: req.firmId });
+  if (!payment) {
+    res.status(404);
+    throw new Error("Payment not found");
+  }
+
+  // Reverse allocations on invoices
+  for (const alloc of payment.allocations || []) {
+    const Model: any = alloc.invoiceModel === "SalesInvoice" ? SalesInvoice : PurchaseInvoice;
+    const doc = await Model.findOne({ _id: alloc.invoice, firm: req.firmId });
+    if (!doc) continue;
+
+    doc.amountPaid = Math.max(0, doc.amountPaid - alloc.amountAllocated);
+    doc.amountDue = doc.grandTotal - doc.amountPaid;
+    doc.status = doc.amountDue <= 0 ? "paid" : doc.amountPaid > 0 ? "partially_paid" : "unpaid";
+    await doc.save();
+  }
+
+  // Reverse party balance
+  const partyDoc = await Party.findOne({ _id: payment.party, firm: req.firmId });
+  if (partyDoc) {
+    partyDoc.currentBalance += payment.direction === "in" ? payment.amount : -payment.amount;
+    await partyDoc.save();
+  }
+
+  await Payment.deleteOne({ _id: payment._id });
+  res.json({ message: "Payment deleted and balance reversed" });
+});

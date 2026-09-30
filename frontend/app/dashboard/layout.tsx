@@ -1,10 +1,11 @@
 "use client";
 
-import { ReactNode, useEffect } from "react";
+import { ReactNode, useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { api } from "@/lib/api";
 
 const NAV_ITEMS = [
   {
@@ -141,6 +142,77 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const { user, firms, activeFirmId, isLoading, logout, switchFirm } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [activeAlertCount, setActiveAlertCount] = useState(0);
+  const [showFirmLockModal, setShowFirmLockModal] = useState<"not_enabled" | "limit_reached" | null>(null);
+
+  function handleAddFirmClick(e?: React.MouseEvent) {
+    if (e) e.preventDefault();
+    if (!user?.enableTwoFirms && firms.length >= 1) {
+      setShowFirmLockModal("not_enabled");
+      return;
+    }
+    if (firms.length >= 2) {
+      setShowFirmLockModal("limit_reached");
+      return;
+    }
+    router.push("/dashboard/firm-setup");
+  }
+
+  const fetchAlertCount = useCallback(async () => {
+    if (!activeFirmId) return;
+    try {
+      let dismissed: string[] = [];
+      try {
+        const saved = localStorage.getItem("mw_dismissed_notifications");
+        if (saved) dismissed = JSON.parse(saved);
+      } catch {
+        // ignore
+      }
+
+      const [productsRes, invoicesRes] = await Promise.all([
+        api.get<any[]>("/products").catch(() => []),
+        api.get<any[]>("/sales?docType=invoice").catch(() => []),
+      ]);
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Overdue or due invoices
+      const overdueInv = (invoicesRes || []).filter((inv: any) => {
+        if (!inv.amountDue || inv.status === "cancelled" || !inv.dueDate) return false;
+        if (dismissed.includes(`inv-${inv._id}`)) return false;
+        const d = new Date(inv.dueDate);
+        d.setHours(0, 0, 0, 0);
+        return d <= today;
+      });
+
+      // Low stock goods (exclude services)
+      const lowStockGoods = (productsRes || []).filter((p: any) => {
+        if (p.type === "service") return false;
+        if (dismissed.includes(`prod-${p._id}`)) return false;
+        const threshold = p.lowStockThreshold ?? 5;
+        return p.currentStock <= threshold;
+      });
+
+      // GST Deadlines
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth();
+      const gstr1Id = `gst-gstr1-${currentYear}-${currentMonth}`;
+      const gstr3bId = `gst-gstr3b-${currentYear}-${currentMonth}`;
+      let gstCount = 0;
+      if (!dismissed.includes(gstr1Id)) gstCount++;
+      if (!dismissed.includes(gstr3bId)) gstCount++;
+
+      const total = overdueInv.length + lowStockGoods.length + gstCount;
+      setActiveAlertCount(total);
+    } catch {
+      // ignore
+    }
+  }, [activeFirmId]);
+
+  useEffect(() => {
+    fetchAlertCount();
+  }, [fetchAlertCount, pathname]);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -225,19 +297,20 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             <div className="rounded-xl border border-slate-200/80 bg-slate-50/60 p-2.5">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Current Business</span>
-                <Link
-                  href="/dashboard/firm-setup"
+                <button
+                  type="button"
+                  onClick={handleAddFirmClick}
                   className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
                   title="Create and add another firm"
                 >
                   + Add Firm
-                </Link>
+                </button>
               </div>
               <select
                 value={activeFirmId || ""}
                 onChange={(e) => {
                   if (e.target.value === "__new__") {
-                    router.push("/dashboard/firm-setup");
+                    handleAddFirmClick();
                   } else {
                     switchFirm(e.target.value);
                   }
@@ -259,6 +332,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <nav className="flex-1 space-y-1 px-3 py-3 overflow-y-auto">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
+            const isNotif = item.href === "/dashboard/notifications";
             return (
               <Link
                 key={item.href}
@@ -269,11 +343,22 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                     : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900"
                 }`}
               >
-                <span className={`transition-colors ${active ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"}`}>
+                <span className={`relative transition-colors ${active ? "text-indigo-600" : "text-slate-400 group-hover:text-slate-600"}`}>
                   {item.icon}
+                  {isNotif && activeAlertCount > 0 && (
+                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-red-600"></span>
+                    </span>
+                  )}
                 </span>
                 <span>{item.label}</span>
-                {active && (
+                {isNotif && activeAlertCount > 0 && (
+                  <span className="ml-auto rounded-full bg-red-100 px-1.5 py-0.2 text-[10px] font-bold text-red-700">
+                    {activeAlertCount}
+                  </span>
+                )}
+                {active && !isNotif && (
                   <span className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-600 shadow-sm shadow-indigo-400" />
                 )}
               </Link>
@@ -327,13 +412,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                 <span className="inline-flex items-center rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                   Active
                 </span>
-                <Link
-                  href="/dashboard/firm-setup"
+                <button
+                  type="button"
+                  onClick={handleAddFirmClick}
                   className="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 transition"
                   title="Create and add another firm"
                 >
                   + Add Firm
-                </Link>
+                </button>
               </div>
               {activeFirm?.gstin && (
                 <p className="text-[11px] font-mono text-slate-400">GSTIN: {activeFirm.gstin}</p>
@@ -355,7 +441,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <span>New Invoice</span>
             </Link>
 
-            {/* Notifications Icon */}
+            {/* Notifications Icon with Red Alert Indicator */}
             <Link
               href="/dashboard/notifications"
               className={`relative flex h-9 w-9 items-center justify-center rounded-lg border transition ${
@@ -373,11 +459,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
                 />
               </svg>
-              {/* Unread badge dot */}
-              <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75"></span>
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-indigo-600"></span>
-              </span>
+              {/* Active Red Alert Dot / Badge */}
+              {activeAlertCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-bold text-white shadow-xs">
+                    {activeAlertCount > 9 ? "9+" : activeAlertCount}
+                  </span>
+                </span>
+              )}
             </Link>
 
             {/* Reports Quick Icon */}
@@ -463,6 +553,71 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </footer>
         </main>
       </div>
+
+      {/* Firm Lock / Limit Dialog Modal */}
+      {showFirmLockModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  {showFirmLockModal === "not_enabled"
+                    ? "Multiple Businesses Locked"
+                    : "Business Limit Reached (2 / 2)"}
+                </h3>
+                <p className="text-xs font-semibold text-amber-600">
+                  {showFirmLockModal === "not_enabled"
+                    ? "Single Business Plan Active"
+                    : "Maximum Limit of 2 Firms Reached"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50/80 p-3.5 text-xs text-slate-600 space-y-2">
+              {showFirmLockModal === "not_enabled" ? (
+                <>
+                  <p>
+                    Your account currently has <strong>1 active business</strong>. Adding a second business requires{" "}
+                    <strong>Two-Firm Access</strong> to be enabled on your account.
+                  </p>
+                  <p className="text-slate-500">
+                    To enable management of up to 2 businesses, please contact support or administrator.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    A single account can add and manage up to <strong>2 businesses maximum</strong>. You are already managing 2 businesses ({firms.map((f) => f.firm.name).join(", ")}).
+                  </p>
+                  <p className="text-slate-500">
+                    No additional businesses can be created on this account.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowFirmLockModal(null)}
+                className="w-full sm:w-auto rounded-lg bg-indigo-600 px-5 py-2 text-xs font-semibold text-white hover:bg-indigo-700 transition shadow-xs"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

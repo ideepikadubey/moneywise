@@ -62,6 +62,10 @@ export const updateProduct = asyncHandler(async (req: AuthenticatedRequest, res:
   // Stock is never edited directly here - it only changes via StockMovement
   // (purchase/sale/adjustment) so the ledger always stays the source of truth.
   const { currentStock, ...safeUpdates } = req.body;
+  if (safeUpdates.type === "service") {
+    safeUpdates.openingStock = 0;
+    safeUpdates.lowStockThreshold = 0;
+  }
   const product = await Product.findOneAndUpdate({ _id: req.params.id, firm: req.firmId }, safeUpdates, {
     new: true,
     runValidators: true,
@@ -90,6 +94,11 @@ export const adjustStock = asyncHandler(async (req: AuthenticatedRequest, res: R
   if (!product) {
     res.status(404);
     throw new Error("Product not found");
+  }
+
+  if (product.type === "service") {
+    res.status(400);
+    throw new Error("Services do not hold physical inventory and cannot be adjusted or restocked.");
   }
 
   const newStock = direction === "in" ? product.currentStock + quantity : product.currentStock - quantity;

@@ -10,7 +10,7 @@ import { INDIAN_STATES } from "@/lib/indianStates";
 
 export default function FirmSetupPage() {
   const router = useRouter();
-  const { firms, refreshFirms } = useAuth();
+  const { user, firms, refreshFirms } = useAuth();
 
   const [name, setName] = useState("");
   const [registrationType, setRegistrationType] = useState<"gstin" | "udyam" | "business_reg" | "none">("gstin");
@@ -22,6 +22,11 @@ export default function FirmSetupPage() {
   const [invoicePrefix, setInvoicePrefix] = useState("INV");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if locked
+  const isLockedNotEnabled = !user?.enableTwoFirms && firms.length >= 1;
+  const isLockedLimitReached = firms.length >= 2;
+  const isLocked = isLockedNotEnabled || isLockedLimitReached;
 
   function handleGstinChange(val: string) {
     const upper = val.toUpperCase();
@@ -58,6 +63,7 @@ export default function FirmSetupPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (isLocked) return;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -78,6 +84,91 @@ export default function FirmSetupPage() {
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  if (isLocked) {
+    return (
+      <main className="flex min-h-screen flex-1 flex-col items-center justify-between px-6 py-10 bg-slate-50/70">
+        <div className="w-full max-w-md my-auto">
+          <div className="mb-6 flex flex-col items-center text-center">
+            <Link href="/dashboard" className="transition-transform hover:scale-[1.02]">
+              <Image
+                src="/MoneyWise.png"
+                alt="MoneyWise"
+                width={190}
+                height={127}
+                priority
+                className="h-20 w-auto object-contain drop-shadow-xs"
+              />
+            </Link>
+            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-indigo-600">
+              Monitor your money wisely
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8 space-y-5 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
+              <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
+                />
+              </svg>
+            </div>
+
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                {isLockedLimitReached ? "Business Limit Reached" : "Multiple Businesses Locked"}
+              </h1>
+              <p className="mt-1 text-xs text-slate-500">
+                {isLockedLimitReached
+                  ? "Maximum capacity of 2 businesses reached"
+                  : "Single Business Account"}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-600 text-left space-y-2">
+              {isLockedNotEnabled ? (
+                <>
+                  <p>
+                    Your account currently manages <strong>1 active business</strong> ({firms[0]?.firm.name}). Adding a second business requires{" "}
+                    <strong>Two-Firm Access</strong> to be enabled on your account.
+                  </p>
+                  <p className="text-slate-500">
+                    To enable two-firm privileges, please contact support or administrator.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    A single account can add and manage up to <strong>2 businesses maximum</strong>. You are already managing 2 businesses ({firms.map((f) => f.firm.name).join(", ")}).
+                  </p>
+                  <p className="text-slate-500">
+                    No additional businesses can be created on this account.
+                  </p>
+                </>
+              )}
+            </div>
+
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-xs font-semibold text-white hover:bg-indigo-700 transition shadow-xs"
+            >
+              &larr; Return to Dashboard
+            </button>
+          </div>
+        </div>
+
+        <footer className="mt-8 text-center text-xs text-slate-400">
+          <p>
+            MoneyWise &bull; monitor your money wisely &bull; a product of{" "}
+            <span className="font-semibold text-slate-600">The Dynamite Technologies</span>
+          </p>
+        </footer>
+      </main>
+    );
   }
 
   return (
